@@ -51,4 +51,6 @@ public class Constant {
     public static final String STATIC_TOPIC_BROKER_NAME = "__syslo__global__";
 
     public static final String WATERMARK_KEY = "watermark_key";
+
+    public static final Integer FIRST_OFFSET = 0;
 }

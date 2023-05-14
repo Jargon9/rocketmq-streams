@@ -20,15 +20,18 @@ import org.apache.rocketmq.client.consumer.DefaultLitePullConsumer;
 import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.client.producer.DefaultMQProducer;
 import org.apache.rocketmq.common.consumer.ConsumeFromWhere;
+import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.tools.admin.DefaultMQAdminExt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collection;
 import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.apache.rocketmq.common.protocol.heartbeat.SubscriptionData.SUB_ALL;
+import static org.apache.rocketmq.streams.core.common.Constant.*;
 import static org.apache.rocketmq.streams.core.metadata.StreamConfig.ROCKETMQ_STREAMS_CONSUMER_FORM_WHERE;
 
 public class RocketMQClient {
@@ -44,12 +47,21 @@ public class RocketMQClient {
                                                 ConsumeFromWhere consumeFromWhere) throws MQClientException {
         DefaultLitePullConsumer pullConsumer = new DefaultLitePullConsumer(groupName);
         pullConsumer.setNamesrvAddr(nameSrvAddr);
-        pullConsumer.setConsumeFromWhere(consumeFromWhere);
         pullConsumer.setAutoCommit(false);
         pullConsumer.setPullBatchSize(1000);
 
-
         for (String topic : topics) {
+            Collection<MessageQueue> messageQueues = pullConsumer.fetchMessageQueues(topic);
+            if (consumeFromWhere.equals(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET)
+                    && !topic.endsWith(SHUFFLE_TOPIC_SUFFIX) && !topic.endsWith(STATE_TOPIC_SUFFIX)) {
+                messageQueues.forEach(messageQueue -> {
+                    try {
+                        pullConsumer.seek(messageQueue, FIRST_OFFSET);
+                    } catch (MQClientException e) {
+                        logger.error("reset messageQueue:{} consumer offset to zero failed.", messageQueue);
+                    }
+                });
+            }
             pullConsumer.subscribe(topic, SUB_ALL);
             logger.debug("subscribe topic:{}, groupName:{}", topic, groupName);
         }
